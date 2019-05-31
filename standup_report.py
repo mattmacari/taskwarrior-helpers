@@ -44,6 +44,7 @@ def print_completed_tasks(completed_tasks: typing.Iterable[task.Task]):
     report_field_names = [
         "UUID",
         "Created",
+        "Finished",
         "Project",
         "tags",
         "Description",
@@ -56,6 +57,7 @@ def print_completed_tasks(completed_tasks: typing.Iterable[task.Task]):
             [
                 task.get("uuid")[:8],
                 date_parser.parse(timestr=task.get("entry")).date(),
+                date_parser.parse(timestr=task.get("end")).date(),
                 task.get("project", "").strip(),
                 ",".join(task.get("tags", [])),
                 task.get("description").strip(),
