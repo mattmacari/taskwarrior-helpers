@@ -1,2 +1,4 @@
-taskw==0.8.6
+taskw==1.2.0
 PTable==0.9.2
+bpython==0.18
+black==19.3b0
