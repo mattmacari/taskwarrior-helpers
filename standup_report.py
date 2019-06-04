@@ -11,8 +11,10 @@ import typing
 
 from dateutil.parser import parser
 from dateutil.relativedelta import relativedelta
-from taskw import TaskWarrior, task
+from taskw import TaskWarrior, task, TaskWarrior
 from prettytable import PrettyTable
+
+logger = logging.getLogger(__name__)
 
 
 def get_completed_tasks(
@@ -22,14 +24,13 @@ def get_completed_tasks(
     Returns a list of completed tasks between a start and end date
     """
     ret_tasks = []
-    logging.debug("Fetching list of completed tasks.")
+    logger.debug("Fetching list of completed tasks.")
     completed_tasks = task_client.load_tasks(command="completed").get(
         "completed"
-    )  # typing.List[typing.Dict]
-    date_parser = parser()
+    )  # type: typing.List[typing.Dict]
     for task in completed_tasks:
         # parse completed on
-        completed_on = date_parser.parse(timestr=task.get("end"))
+        completed_on = task.get("end")
         # completed on in window, then append
         if all([completed_on.date() >= start_date, completed_on.date() <= end_date]):
             ret_tasks.append(task)
@@ -40,7 +41,6 @@ def print_completed_tasks(completed_tasks: typing.Iterable[task.Task]):
     """
     Prints a list of completed tasks to the stdout
     """
-    date_parser = parser()
     report_field_names = [
         "UUID",
         "Created",
@@ -55,10 +55,10 @@ def print_completed_tasks(completed_tasks: typing.Iterable[task.Task]):
     for task in completed_tasks:
         table.add_row(
             [
-                task.get("uuid")[:8],
-                date_parser.parse(timestr=task.get("entry")).date(),
-                date_parser.parse(timestr=task.get("end")).date(),
-                task.get("project", "").strip(),
+                str(task.get("uuid"))[:8],
+                task.get("entry").date(),
+                task.get("end").date(),
+                task.get("project", " ").strip(),
                 ",".join(task.get("tags", [])),
                 task.get("description").strip(),
                 task.get("jira", ""),
@@ -68,26 +68,76 @@ def print_completed_tasks(completed_tasks: typing.Iterable[task.Task]):
     print(table)
 
 
-def upcoming_tasks(task_client: TaskWarrior, due_date: date) -> typing.List[task.Task]:
-    pass
+def get_upcoming_tasks(
+    task_client: TaskWarrior, due_date: date
+) -> typing.List[task.Task]:
+    """
+    prints the tasks coming up due on the due_date
+    """
+    ret_tasks = []
+    # grab tasks due on due_date
+    tasks = task_client.load_tasks()["pending"]  # type: typing.List[typing.Dict]
+    return [
+        task for task in tasks if "due" in task and task.get("due").date() == due_date
+    ]
+
+
+def print_upcoming_tasks(upcoming_tasks: typing.Iterable[task.Task]):
+    """
+    Prints a list of upcoming tasks to the stdout
+    """
+    report_field_names = [
+        "id",
+        "UUID",
+        "Priority",
+        "Created",
+        "Due",
+        "Project",
+        "tags",
+        "Description",
+        "JIRA Ticket",
+    ]
+    table = PrettyTable(field_names=report_field_names)
+    table.align = "l"
+    for task in upcoming_tasks:
+        table.add_row(
+            [
+                task.get("id"),
+                str(task.get("uuid"))[:8],
+                task.get("priority", " "),
+                task.get("entry").date(),
+                task.get("due").date(),
+                task.get("project", " ").strip(),
+                ",".join(task.get("tags", [])),
+                task.get("description").strip(),
+                task.get("jira", ""),
+            ]
+        )
+
+    print(table)
 
 
 ## print standup report
 
 if __name__ == "__main__":
-
-    task_client = TaskWarrior()
+    # TODO: Wrap this in a main() method.
+    task_client = TaskWarrior(marshal=True)
     today = date.today()
     yesterday = date.today() + relativedelta(days=-1)
+
     print(f"Daily Standup Report for {today}")
     print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
     print("")
     print("Yesterday's Completed Tasks")
+    print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
     print("")
     completed_tasks = get_completed_tasks(
         task_client=task_client, start_date=yesterday, end_date=today
     )
     print_completed_tasks(completed_tasks)
-
-    print("Today's Tasks")
     print("")
+    print("Today's Tasks")
+    print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+    print("")
+    upcoming_tasks = get_upcoming_tasks(task_client=task_client, due_date=today)
+    print_upcoming_tasks(upcoming_tasks)
