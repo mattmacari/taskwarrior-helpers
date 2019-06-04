@@ -8,6 +8,7 @@ import os
 import logging
 from datetime import datetime, date
 import typing
+import operator
 
 from dateutil.parser import parser
 from dateutil.relativedelta import relativedelta
@@ -34,7 +35,7 @@ def get_completed_tasks(
         # completed on in window, then append
         if all([completed_on.date() >= start_date, completed_on.date() <= end_date]):
             ret_tasks.append(task)
-    return ret_tasks
+    return sorted(ret_tasks, key=lambda x: operator.getitem(x, "end"))
 
 
 def print_completed_tasks(completed_tasks: typing.Iterable[task.Task]):
