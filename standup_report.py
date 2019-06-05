@@ -4,17 +4,17 @@ standup_report
 
 Generates a standup report and writes it to stdout or a file.
 """
-import os
 import logging
-from datetime import datetime, date
-import typing
 import operator
+import os
+import typing
+from datetime import date, datetime
 
 from dateutil.parser import parser
 from dateutil.relativedelta import relativedelta
+from prettytable import PrettyTable
 from taskw import TaskWarrior, task
 from taskw.warrior import Status
-from prettytable import PrettyTable
 
 logger = logging.getLogger(__name__)
 
