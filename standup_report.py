@@ -12,7 +12,8 @@ import operator
 
 from dateutil.parser import parser
 from dateutil.relativedelta import relativedelta
-from taskw import TaskWarrior, task, TaskWarrior
+from taskw import TaskWarrior, task
+from taskw.warrior import Status
 from prettytable import PrettyTable
 
 logger = logging.getLogger(__name__)
@@ -26,8 +27,8 @@ def get_completed_tasks(
     """
     ret_tasks = []
     logger.debug("Fetching list of completed tasks.")
-    completed_tasks = task_client.load_tasks(command="completed").get(
-        "completed"
+    completed_tasks = task_client.filter_tasks(
+        filter_dict={"status": Status.COMPLETED}
     )  # type: typing.List[typing.Dict]
     for task in completed_tasks:
         # parse completed on
@@ -38,52 +39,38 @@ def get_completed_tasks(
     return sorted(ret_tasks, key=lambda x: operator.getitem(x, "end"))
 
 
-def print_completed_tasks(completed_tasks: typing.Iterable[task.Task]):
-    """
-    Prints a list of completed tasks to the stdout
-    """
-    report_field_names = [
-        "UUID",
-        "Created",
-        "Finished",
-        "Project",
-        "tags",
-        "Description",
-        "JIRA Ticket",
-    ]
-    table = PrettyTable(field_names=report_field_names)
-    table.align = "l"
-    for task in completed_tasks:
-        table.add_row(
-            [
-                str(task.get("uuid"))[:8],
-                task.get("entry").date(),
-                task.get("end").date(),
-                task.get("project", " ").strip(),
-                ",".join(task.get("tags", [])),
-                task.get("description").strip(),
-                task.get("jira", ""),
-            ]
-        )
-
-    print(table)
-
-
-def get_upcoming_tasks(
+def get_tasks_by_due_date(
     task_client: TaskWarrior, due_date: date
 ) -> typing.List[task.Task]:
     """
     prints the tasks coming up due on the due_date
     """
-    ret_tasks = []
     # grab tasks due on due_date
-    tasks = task_client.load_tasks()["pending"]  # type: typing.List[typing.Dict]
+    tasks = task_client.filter_tasks(
+        filter_dict={"status": Status.PENDING}
+    )  # type: typing.List[typing.Dict]
     return [
         task for task in tasks if "due" in task and task.get("due").date() == due_date
     ]
 
 
-def print_upcoming_tasks(upcoming_tasks: typing.Iterable[task.Task]):
+def filter_tasks(
+    task_client: TaskWarrior,
+    filter_callable: typing.Callable,
+    status: str = Status.PENDING,
+) -> typing.List[task.Task]:
+    """
+    Filters the tasks based on the callable passed in.
+    """
+    tasks = task_client.filter_tasks(filter_dict={"status": status})
+    return sorted(
+        (task for task in tasks if filter_callable(task)),
+        key=lambda x: operator.getitem(x, "urgency"),
+        reverse=True,
+    )
+
+
+def print_task_table(tasks: typing.Iterable[task.Task]):
     """
     Prints a list of upcoming tasks to the stdout
     """
@@ -91,8 +78,10 @@ def print_upcoming_tasks(upcoming_tasks: typing.Iterable[task.Task]):
         "id",
         "UUID",
         "Priority",
+        "Urgency",
         "Created",
         "Due",
+        "Done",
         "Project",
         "tags",
         "Description",
@@ -100,14 +89,16 @@ def print_upcoming_tasks(upcoming_tasks: typing.Iterable[task.Task]):
     ]
     table = PrettyTable(field_names=report_field_names)
     table.align = "l"
-    for task in upcoming_tasks:
+    for task in tasks:
         table.add_row(
             [
                 task.get("id"),
                 str(task.get("uuid"))[:8],
                 task.get("priority", " "),
+                task.get("urgency"),
                 task.get("entry").date(),
-                task.get("due").date(),
+                task.get("due").date() if task.get("due") else "",
+                task.get("end").date() if task.get("end") else "",
                 task.get("project", " ").strip(),
                 ",".join(task.get("tags", [])),
                 task.get("description").strip(),
@@ -117,8 +108,6 @@ def print_upcoming_tasks(upcoming_tasks: typing.Iterable[task.Task]):
 
     print(table)
 
-
-## print standup report
 
 if __name__ == "__main__":
     # TODO: Wrap this in a main() method.
@@ -135,10 +124,27 @@ if __name__ == "__main__":
     completed_tasks = get_completed_tasks(
         task_client=task_client, start_date=yesterday, end_date=today
     )
-    print_completed_tasks(completed_tasks)
+    print_task_table(completed_tasks)
+
+    overdue_tasks = filter_tasks(
+        task_client=task_client,
+        filter_callable=lambda x: "due" in x and x.get("due").date() < date.today(),
+        status=Status.PENDING,
+    )
+    if overdue_tasks:
+        print("")
+        print("Overdue tasks")
+        print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+        print("")
+        print_task_table(overdue_tasks)
+
     print("")
     print("Today's Tasks")
     print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
     print("")
-    upcoming_tasks = get_upcoming_tasks(task_client=task_client, due_date=today)
-    print_upcoming_tasks(upcoming_tasks)
+    tasks_due_today = filter_tasks(
+        task_client=task_client,
+        filter_callable=lambda x: "due" in x and x.get("due").date() == date.today(),
+        status=Status.PENDING,
+    )
+    print_task_table(tasks_due_today)
