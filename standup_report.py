@@ -11,7 +11,7 @@ import typing
 from datetime import date, datetime
 
 from dateutil.parser import parser
-from dateutil.relativedelta import relativedelta
+from dateutil.relativedelta import relativedelta, SA
 from prettytable import PrettyTable
 from taskw import TaskWarrior, task
 from taskw.warrior import Status
@@ -148,3 +148,17 @@ if __name__ == "__main__":
         status=Status.PENDING,
     )
     print_task_table(tasks_due_today)
+
+    print("")
+    print("This Week's Tasks (Due by Saturday)")
+    print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+    print("")
+    saturday_dt = date.today() + relativedelta(days=1, weekday=SA)
+    tasks_due_by_saturday = filter_tasks(
+        task_client=task_client,
+        filter_callable=lambda x: "due" in x
+        and x.get("due").date() <= saturday_dt
+        and x.get("due").date() > date.today(),
+        status=Status.PENDING,
+    )
+    print_task_table(tasks_due_by_saturday)
